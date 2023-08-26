@@ -99,11 +99,13 @@ def split_text(text: str, max_chars: int, language: str) -> List[str]:
         current_chunk = ""
 
         for sentence in sentences:
-            sentence = html.escape(sentence).replace("\n ", "\n").replace(" \n", "\n") \
-                .replace("***", '<break strength="weak" />') \
+            sentence = html.escape(sentence + ". ").replace("\n ", "\n").replace(" \n", "\n") \
+                .replace("\n\n", '<break strength="weak" />') \
+                .replace("\n", '<break strength="x-weak" />') \
+                .replace("***", '<break strength="medium" />') \
                 .strip()
-            if len(current_chunk) + len(sentence) + 1 <= max_chars:
-                current_chunk += (" " if current_chunk else "") + sentence
+            if len(current_chunk) + len(sentence) <= max_chars:
+                current_chunk += sentence
             else:
                 chunks.append(current_chunk)
                 current_chunk = sentence
@@ -134,7 +136,7 @@ def text_to_speech(session: requests.Session, text: str, output_file: str, voice
         logger.info(
             f"Processing chapter-{idx} <{title}>, chunk {i} of {len(text_chunks)}")
         ssml = f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{language}'><voice name='{voice_name}'>{chunk}</voice></speak>"
-
+        logger.info(ssml)
         for retry in range(MAX_RETRIES):
             if access_token.is_expired():
                 logger.info(f"access_token is expired, getting new one")
@@ -213,8 +215,8 @@ def main():
     parser = argparse.ArgumentParser(description="Convert EPUB to audiobook")
     parser.add_argument("input_file", help="Path to the EPUB file")
     parser.add_argument("output_folder", help="Path to the output folder")
-    parser.add_argument("--voice_name", default="en-US-GuyNeural",
-                        help="Voice name for the text-to-speech service (default: en-US-GuyNeural). You can use zh-CN-YunyeNeural for Chinese ebooks.")
+    parser.add_argument("--voice_name", default="en-US-SteffanNeural",
+                        help="Voice name for the text-to-speech service (default: en-US-SteffanNeural). You can use zh-CN-YunyeNeural for Chinese ebooks.")
     parser.add_argument("--language", default="en-US",
                         help="Language for the text-to-speech service (default: en-US)")
     args = parser.parse_args()
