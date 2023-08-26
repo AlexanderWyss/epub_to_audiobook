@@ -99,15 +99,15 @@ def split_text(text: str, max_chars: int, language: str) -> List[str]:
         current_chunk = ""
 
         for sentence in sentences:
-            sentence = html.escape(sentence + ". ").replace("\n ", "\n").replace(" \n", "\n") \
+            sentence = html.escape(sentence + ".").replace("\n ", "\n").replace(" \n", "\n") \
                 .replace("\n\n", '<break strength="weak" />') \
                 .replace("\n", '<break strength="x-weak" />') \
                 .replace("***", '<break strength="medium" />') \
-                .strip()
+                .strip() + " "
             if len(current_chunk) + len(sentence) <= max_chars:
                 current_chunk += sentence
             else:
-                chunks.append(current_chunk)
+                chunks.append(current_chunk.strip())
                 current_chunk = sentence
 
         if current_chunk:
