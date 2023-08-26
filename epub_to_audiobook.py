@@ -1,18 +1,19 @@
-import os
-import re
-import io
 import argparse
 import html
-import ebooklib
-from ebooklib import epub
-from bs4 import BeautifulSoup
-import requests
-from typing import List, Tuple
-from datetime import datetime, timedelta
-from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TPE1, TALB, TRCK
+import io
 import logging
+import os
+import re
+from datetime import datetime, timedelta
 from time import sleep
+from typing import List, Tuple
+
+import ebooklib
+import requests
+from bs4 import BeautifulSoup
+from ebooklib import epub
+from mutagen.id3 import TIT2, TPE1, TALB, TRCK
+from mutagen.mp3 import MP3
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -21,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 # Added max_retries constant
 MAX_RETRIES = 10
-
 
 subscription_key = os.environ.get("MS_TTS_KEY")
 region = os.environ.get("MS_TTS_REGION")
@@ -51,10 +51,11 @@ def extract_chapters(epub_book: ebooklib.epub.EpubBook) -> List[Tuple[str, str]]
             content = item.get_content()
             soup = BeautifulSoup(content, 'lxml')
             title = soup.title.string if soup.title else ''
-            raw = soup.get_text(strip=False)
-            logger.info(f"Raw text: <{raw[:100]}>")
-            text = soup.get_text(separator=" ", strip=True)
-            logger.info(f"Stripped text: <{text[:100]}>")
+            text = soup.get_text(separator=" ", strip=False).strip()
+            if text.startswith("Chapter"):
+                title = text.split(sep="\n", maxsplit=1)[0].strip()
+            logger.info(f"Title: {title}")
+            logger.info(f"Text: {repr(text[:1000])}")
             chapters.append((title, text))
             soup.decompose()
     return chapters
@@ -93,16 +94,19 @@ def split_text(text: str, max_chars: int, language: str) -> List[str]:
         chunks = [text[i:i + max_chars]
                   for i in range(0, len(text), max_chars)]
     else:
-        words = text.split()
+        sentences = text.split(sep=".")
         chunks = []
         current_chunk = ""
 
-        for word in words:
-            if len(current_chunk) + len(word) + 1 <= max_chars:
-                current_chunk += (" " if current_chunk else "") + word
+        for sentence in sentences:
+            sentence = html.escape(sentence).replace("\n ", "\n").replace(" \n", "\n") \
+                .replace("***", '<break strength="weak" />') \
+                .strip()
+            if len(current_chunk) + len(sentence) + 1 <= max_chars:
+                current_chunk += (" " if current_chunk else "") + sentence
             else:
                 chunks.append(current_chunk)
-                current_chunk = word
+                current_chunk = sentence
 
         if current_chunk:
             chunks.append(current_chunk)
@@ -117,7 +121,8 @@ def split_text(text: str, max_chars: int, language: str) -> List[str]:
     return chunks
 
 
-def text_to_speech(session: requests.Session, text: str, output_file: str, voice_name: str, language: str, access_token: AccessToken, title: str, author: str, book_title: str, idx: int) -> AccessToken:
+def text_to_speech(session: requests.Session, text: str, output_file: str, voice_name: str, language: str,
+                   access_token: AccessToken, title: str, author: str, book_title: str, idx: int) -> AccessToken:
     # Adjust this value based on your testing
     max_chars = 1800 if language.startswith("zh") else 3000
 
@@ -126,10 +131,9 @@ def text_to_speech(session: requests.Session, text: str, output_file: str, voice
     audio_segments = []
 
     for i, chunk in enumerate(text_chunks, 1):
-        escaped_text = html.escape(chunk)
         logger.info(
             f"Processing chapter-{idx} <{title}>, chunk {i} of {len(text_chunks)}")
-        ssml = f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{language}'><voice name='{voice_name}'>{escaped_text}</voice></speak>"
+        ssml = f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{language}'><voice name='{voice_name}'>{chunk}</voice></speak>"
 
         for retry in range(MAX_RETRIES):
             if access_token.is_expired():

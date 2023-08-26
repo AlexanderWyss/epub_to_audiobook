@@ -22,3 +22,6 @@ Thumbs.db
 
 # audio files
 audiobook_output/
+
+
+.idea/
